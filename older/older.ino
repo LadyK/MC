@@ -29,16 +29,16 @@
 Adafruit_ILI9340 tft = Adafruit_ILI9340(TFT_CS, TFT_DC, TFT_RST);
 
 /* When adding images:
-- images must be 240 x 320 bmp for windows with titles less than 7 characters
-- add string title to history array
-- increase these variable start values by number of images: storageH + numImages_hist
+  - images must be 240 x 320 bmp for windows with titles less than 7 characters
+  - add string title to history array
+  - increase these variable start values by number of images: storageH + numImages_hist
 */
 
 
 /* When adding images:
-- images must be 240 x 320 bmp for windows with titles less than 7 characters
-- add string title to history array
-- increase these variable start values by number of images: storageH + numImages_hist
+  - images must be 240 x 320 bmp for windows with titles less than 7 characters
+  - add string title to history array
+  - increase these variable start values by number of images: storageH + numImages_hist
 */
 
 char* images[] = {"black.bmp", "asburyB.bmp", "vancov.bmp", "bench.bmp", "AlexBDay.bmp", "caton.bmp", "lvrmBlu.bmp", "sunset2.bmp", "street2.bmp",
@@ -49,14 +49,14 @@ char* images[] = {"black.bmp", "asburyB.bmp", "vancov.bmp", "bench.bmp", "AlexBD
 
 // if we repeat 0 slot twice, will actually show image
 /*
-byte natural[] = {9, 10, 16, 14, 15, 18};
-byte bday[] = {4, 5, 19, 11, 3, 8, 17, 6};
-byte dark[] = {6, 2, 20, 5, 11, 3, 15, 18};
-byte dark2[] = {6, 7, 2, 1, 20, 21, 3, 9, 13, 9};
-byte water[] = {16, 10, 2, 1, 20, 21, 7, 3};
-byte winter[] = {12, 14, 9, 11};
-byte blank[] = { 7, 0, 0, 13, 0, 14, 0, 14, 14};
-{ natural, bday, dark, dark2, water, winter, blank};
+  byte natural[] = {9, 10, 16, 14, 15, 18};
+  byte bday[] = {4, 5, 19, 11, 3, 8, 17, 6};
+  byte dark[] = {6, 2, 20, 5, 11, 3, 15, 18};
+  byte dark2[] = {6, 7, 2, 1, 20, 21, 3, 9, 13, 9};
+  byte water[] = {16, 10, 2, 1, 20, 21, 7, 3};
+  byte winter[] = {12, 14, 9, 11};
+  byte blank[] = { 7, 0, 0, 13, 0, 14, 0, 14, 14};
+  { natural, bday, dark, dark2, water, winter, blank};
 */
 byte narrLimit = 10;
 byte narratives[7][10] = {
@@ -94,7 +94,7 @@ unsigned long previousMillis_m = 0;
 
 //store the random selections so not as to repeat any selections
 int storageH[22];   //  // need to store zero slot, but will never use that image slot
-int prob_narr = 300; //= 200;
+int prob_narr = 100; //= 200;
 int hist = 800;
 int picD = 150;
 int picH = 4000;
@@ -142,10 +142,13 @@ void setup() {
   tft.fillScreen(ILI9340_BLACK);
   randomSeed(analogRead(A5));
 
+  lastMillis = 0;
+
 }
 
 void loop() {
-  //delay(200); // slow everything down a tad for testing
+  delay(200); // slow everything down a tad for testing
+  analogWrite(analogLED, 0);
 
   /*  this is nice with the layering and leaving the bckgnd
     tft.setRotation(random(0, 3));
@@ -156,7 +159,7 @@ void loop() {
     a++;
     if (a > 4) a = 0;
     delay(1000);
-    */
+  */
 
 
   // check the sensor every so often
@@ -170,7 +173,7 @@ void loop() {
     Serial.println(Wind_speed);
 
     // if that reading is over the threshold
-    if ((float)Wind_speed > 0.01) {  //0.8   // this low?
+    if ((float)Wind_speed > 5.0) {  //0.8   // this low?
       // take a time stamp
       lastMillis = millis();
       // flutter a LED
@@ -179,27 +182,37 @@ void loop() {
       Serial.println(wind);
 
       //is this necessary any more??
-
+      ///*
       // take the LED's to the level of the wind:
+      //bring them up frrom darkness to the level of wind
       for (int i = 0; i < wind; i++) {
         analogWrite(analogLED, i);
         //delay(10);
       }
+      //*/
 
-      // and this?
-
-      //then take that sensor level and map to light (max light level):
-      int brightness = float(map(wind, 5, 500.0, 0, 1023)); //<- no funniness?
-      analogWrite(analogLED, brightness);
+      /*  move this:
+            //then take that wind and map to light (max light level):
+            int brightness = float(map(wind, 5, 500.0, 0, 1023)); //<- no funniness?
+            analogWrite(analogLED, brightness);
+      */
       wind = checkWind();
       Serial.print(F("wind speed is  "));
       Serial.println(wind);
-        
+
       //if (currentMillis - previousMillis > interval) { }
 
       // if recent wind is greater than this level:
       if (wind > 8.0) {
+        // maybe put wind to light light here?
+
+        // then take that wind and map to light (max light level):
+        int brightness = float(map(wind, 5, 500.0, 0, 1023)); //<- no funniness?
+        analogWrite(analogLED, brightness);
+
+
         showImg(wind);
+        analogWrite(analogLED, 0); // bring lights low after
         //swapie();
         //Serial.println("heyo");
 
@@ -242,15 +255,15 @@ void swapie() {
     }
 
     /* swapping around narrative points
-    //images[narratives[randX][randY] = images[int(random(images.length())]
-    // pick a random value within the limits of the lengths of rows + columns
-    int randX = int(random(7));
-    int randY = int(random(10));
-    int tempNarrA = narratives[randX][randY];
+      //images[narratives[randX][randY] = images[int(random(images.length())]
+      // pick a random value within the limits of the lengths of rows + columns
+      int randX = int(random(7));
+      int randY = int(random(10));
+      int tempNarrA = narratives[randX][randY];
 
-    randX = int(random(7));
-    randY = int(random(10));
-    int tempNarrB = narratives[randX][randY];
+      randX = int(random(7));
+      randY = int(random(10));
+      int tempNarrB = narratives[randX][randY];
     */
 
   }// for loop
@@ -261,8 +274,10 @@ void swapie() {
 
 void showImg(int w) {
   currentMillis = millis();  //unsigned long
-  int brightness = float(map(w, 0, 500.0, 0, 1023));
-  analogWrite(analogLED, brightness);
+
+  // took this out. don't think it's necessary. Already at the light level:
+  //int brightness = float(map(w, 0, 500.0, 0, 1023));
+  //analogWrite(analogLED, brightness);
 
   if (currentMillis - previousMillis > interval) {
     //Serial.println("heyo");
@@ -273,18 +288,21 @@ void showImg(int w) {
     //Serial.println(r);
     delay(100);
 
+    // once in a while, show a narrative:
     if ( r <= prob_narr) {
-      // figure out which narrative to show:
+      //figure out a narrative to show, along with delay lengths:
 
+      // use a bit more probability, as to which narrative to show:
       int randNarr = ceil(random(10));
       // Serial.print(F("randNarr select is: ")); Serial.println(randNarr);
 
+      // pick a couple differnt delay times
       int randDelayLong = ceil(random(55)) * 100;
-      int randDelayShort = ceil(random(10)) * 100;
+      int randDelayShort = ceil(random(7, 10)) * 100;
       int delays[] = {randDelayLong, randDelayShort, randDelayLong};
 
+      // this holds the final selection:
       int narrSelection;
-
       if ( randNarr < 2) {
         narrSelection = 2;
       }
@@ -309,6 +327,7 @@ void showImg(int w) {
       //Serial.print(F("random selection is: ")); Serial.println(narrSelection);
       //Serial.print(F("Array line is ")); Serial.println(whichNarr[narrSelection]);
 
+      // show all those images in that narrative:
       for (int i = 0; i < narrLimit; i++) {
         int img = narratives[narrSelection][i];
         if (narratives[narrSelection][i] == 0) {
@@ -326,23 +345,29 @@ void showImg(int w) {
           // } else {
           //otherwise...
           bmpDraw(images[narratives[narrSelection][i] ], 0, 0);
+          // }
+          //}
+          if (i == !(narrLimit - 1)) { //if we are not the last img in narrative:
+            // delay a varying amount between the images:
+            int choser = int(random(0, 3));
+            Serial.print(F("delay narr"));
+            Serial.println(delays[choser]);
+            delay(delays[choser]);    // let's see how this goes
+          }
         }
-        //}
-
-        int choser = int(random(0, 3));
-        delay(delays[choser]);    // let's see how this goes
       }
       tft.fillScreen(ILI9340_BLACK);
 
-    } //if r< prob_narr
+    } //if probabilty says to show a narr
 
-
+    //Otherwise, perhaps show a random image from storage:
     else if ( r <= hist) {
       //select random image to show
       image = int(random(1, (sizeof(storageH) / sizeof(int)))); //number of images - 1, for empty slot
       //   Serial.print(F("image picked =  "));
       //   Serial.println(image);
 
+      //let's check if we have already been shown: (if so, select another image:)
       while (alreadyShown(image)) { //maybe use an if statement instead?
         Serial.println(F("let's try a different number"));
         image = int(random(1, (sizeof(storageH) / sizeof(int)))); // there are 14 slots, but 13 images. random(min, (max+1)); doesn't do top limit. up unto that value
@@ -350,14 +375,16 @@ void showImg(int w) {
         Serial.println(image);
       }
 
-      /*
-            // draw the image here, right? If it's been selected and not shown already, then show it.
-             bmpDraw(images[image], 0, 0);
-             int randDelayLong = ceil(random(55)) * 100;
-            int randDelayShort = ceil(random(10)) * 100;
-            int delays[] = {randDelayLong, randDelayShort, randDelayLong};
-             delay(
-            */
+      //  /*
+
+      int randDelayLong = ceil(random(55)) * 100;
+      int randDelayShort = ceil(random(10)) * 100;
+      int delays[] = {randDelayLong, randDelayShort, randDelayLong};
+      int choser = int(random(0, 3));
+
+      // draw the image here, right? If it's been selected and not shown already, then show it.
+      // bmpDraw(images[image], 0, 0); //shown in alreadyShown()
+      //  */
 
     } //else if hist
     else {
@@ -425,17 +452,17 @@ void mixingMemories() {
   //previousMillis_m = millis(); // take a time stamp for memory mixing (black and overlay);
   //Serial.print("memory mixer stamp: ");
   //Serial.println(previousMillis_m);
-  Serial.println();
-  Serial.println();
-  Serial.println(millis());
+  //Serial.println();
+  //Serial.println();
+  //Serial.println(millis());
   Serial.println(millis() - previousMillis );
 
   if ((millis() - previousMillis_m ) > 150000 ) { // 15 mintes = 900,000
     // mix up memories. this does an overlay of a few images before moving on
-     Serial.println();
+    // Serial.println();
     Serial.println(F("now we are going to mix them up!"));
-    Serial.println();
-    Serial.println();
+    // Serial.println();
+    // Serial.println();
     for (int i = 0; i < 3; i++) {
       bmpDraw(images[random(0, numImages_hist)], 0, 0);
       tft.setRotation(random(0, 3));
@@ -450,15 +477,15 @@ void mixingMemories() {
     delay(2000);
     previousMillis_m = millis();
     previousMillis_m2 = previousMillis_m2 + previousMillis_m;
-    
+
     //tft.fillScreen(ILI9340_BLACK);
   }
 
-  
+
   // if it's been a longer while, black out memories
   if ((millis() - previousMillis_m2) > 300000) { // 20 minutes = 1,200,000
     // black over them
-     Serial.println();
+    Serial.println();
     Serial.println("Blacking out memories");
     Serial.println();
     Serial.println();
@@ -473,12 +500,14 @@ void mixingMemories() {
     previousMillis_m2 = 0;
 
   }
-  
+
   tft.setRotation(0);
 }
 
 void storageCheck() {
+
   Serial.println(F("let's get me stored"));
+  analogWrite(analogLED, 0);
   for (int i = 1; i < sizeof(storageH) / sizeof(int); i++) {
     if (storageH[i] == 0) { // need to check this about 1st slot & 0 showing
       storageH[i] = image;
@@ -530,20 +559,20 @@ float checkWind() {
   WindSpeed_MPH =  pow(((RV_Wind_Volts - zeroWind_volts) / .2300) , 2.7265);
   /*
     Serial.print("  TMP volts ");
-   Serial.print(TMP_Therm_ADunits * 0.0048828125);
+    Serial.print(TMP_Therm_ADunits * 0.0048828125);
 
-   Serial.print(" RV volts ");
-   Serial.print((float)RV_Wind_Volts);
+    Serial.print(" RV volts ");
+    Serial.print((float)RV_Wind_Volts);
 
-   Serial.print("\t  TempC*100 ");
-   Serial.print(TempCtimes100 );
+    Serial.print("\t  TempC*100 ");
+    Serial.print(TempCtimes100 );
 
-   Serial.print("   ZeroWind volts ");
-   Serial.print(zeroWind_volts);
+    Serial.print("   ZeroWind volts ");
+    Serial.print(zeroWind_volts);
 
-   Serial.print("   WindSpeed MPH ");
-   Serial.println((float)WindSpeed_MPH);
-   */
+    Serial.print("   WindSpeed MPH ");
+    Serial.println((float)WindSpeed_MPH);
+  */
 
   WindSpeed_MPH = WindSpeed_MPH * 100.0;
   //Serial.print("   WindSpeed MPH_upped ");
@@ -583,10 +612,10 @@ void bmpDraw(char *filename, uint8_t x, uint8_t y) {
 
   if ((x >= tft.width()) || (y >= tft.height())) return;
   /**
-   *
-   * Keep print statements. When comment these out, pics don't load
-   * timing?
-   */
+
+     Keep print statements. When comment these out, pics don't load
+     timing?
+  */
   Serial.println();
   Serial.print(F("Loading image '"));
   Serial.print(filename);
