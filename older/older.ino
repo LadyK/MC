@@ -98,6 +98,7 @@ unsigned long currentMillis;
 unsigned long lastMillis2;
 
 unsigned long previousMillis_m = 0;
+int delays[3];
 
 //store the random selections so not as to repeat any selections
 int storageH[22];   //  // need to store zero slot, but will never use that image slot
@@ -353,14 +354,14 @@ void showImg(int w) {
 
 }
 
-void showNarative() {
+void showNarrative() {
   // use probability, as to which narrative to show:
   int randNarr = ceil(random(10));
 
   // pick a couple differnt delay times:
   int randDelayLong = ceil(random(55)) * 100;
   int randDelayShort = ceil(random(7, 10)) * 100;
-  int delays[] = {randDelayLong, randDelayShort, randDelayLong};
+   int delays[] = {randDelayLong, randDelayShort, randDelayLong};
 
   // this holds the final selection:
   int narrSelection;
@@ -431,10 +432,7 @@ void mixingMemories(int d) {
   //previousMillis_m = millis(); // take a time stamp for memory mixing (black and overlay);
   //Serial.print("memory mixer stamp: ");
   //Serial.println(previousMillis_m);
-  //Serial.println();
-  //Serial.println();
-  //Serial.println(millis());
-  //Serial.println(millis() - previousMillis );
+
 
   if ((millis() - previousMillis_m ) > 150000 ) { // 15 mintes = 900,000
     // mix up memories. this does an overlay of a few images before moving on
