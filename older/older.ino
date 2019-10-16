@@ -187,8 +187,8 @@ void loop() {
       // flutter a LED
       //analogWrite(analogLED, wind_speed);
 
-      int smallBreeze = float(map(wind_speed, .05, 5.0, 0, 50));
-      Serial.print("Breeze :  "); Serial.println(smallBreeze);
+      int smallBreeze = float(map(wind_speed, .05, 10.0, 0, 50));
+      Serial.print(F("Breeze :  ")); Serial.println(smallBreeze);
       // for (int i = 0; i < smallBreeze; i++) {
       analogWrite(analogLED, smallBreeze);
       delay(100);
@@ -214,11 +214,11 @@ void loop() {
 
     wind_speed = checkWind();
     // if recent wind is greater than this level:
-    if (wind_speed >= 5) {
+    if (wind_speed >= 10) {
       // maybe put wind to light light here?
       lastMillis = millis();
       // then take that wind and map to light (max light level):
-      int brightness = float(map(wind_speed, 5, 50, 0, 1023)); //<- no funniness?
+      int brightness = float(map(wind_speed, 10, 50, 0, 1023)); //<- no funniness?
 
       for (int i = 0; i <= brightness; i++) {
         analogWrite(analogLED, i);
@@ -226,7 +226,7 @@ void loop() {
       }
 
       analogWrite(analogLED, brightness);
-      Serial.println("about to show img;; BRIGHT");
+      //Serial.println("about to show img;; BRIGHT");
       showImg(brightness);
       analogWrite(analogLED, 0); // bring lights low after
       //swapie();
@@ -243,7 +243,7 @@ void loop() {
 
   // Serial.print(F("previousErase - timestamp is: ")); Serial.println(millis() - previousErase);
   if (millis() - previousErase  > 600000) { // if we've erased again after 10 minutes
-    //swapie();
+    swapie();
   }
 }
 
@@ -254,7 +254,7 @@ void swapie() {
   //int thresh = 5000;
   // after so much time has passed
   // swap around 5 images:
-  Serial.println("Some serious swappin' about to happen");
+  Serial.println(F("Some serious swappin' about to happen"));
   Serial.println();
   Serial.println();
   for (int i = 0; i < 6; i++) {
@@ -265,7 +265,7 @@ void swapie() {
     images[randImgA] = images[randImgB]; // copy new random slot to the previous
     if (i % 3 == 0) {
       // black out
-      Serial.println("add in a black out");
+      Serial.println(F("add in a black out"));
       images[randImgB] = "black.bmp"; // black out that spot where the image was drawn from
     } else {  // just swap them around totally
       images[randImgB] = tempImgA;
@@ -293,8 +293,8 @@ void showImg(int w) {
   currentMillis = millis();  //unsigned long
   //  ensures that lights are on for image (bug work arnd):
   analogWrite(analogLED, w);
-  Serial.println("Turned on...now img");
-  
+  Serial.println(F("Turned on...now img"));
+
   if (currentMillis - previousMillis > interval) {
 
     r = random((hist + 50));
@@ -302,7 +302,7 @@ void showImg(int w) {
     // once in a while, show a narrative:
     if ( r <= prob_narr) {
       //figure out a narrative to show, along with delay lengths:
-      Serial.println("showing narrative");
+      Serial.println(F("showing narrative"));
 
 
       showNarrative();
@@ -324,7 +324,7 @@ void showImg(int w) {
         Serial.print(F("new image picked =  "));
         Serial.println(image);
       }
-      Serial.println("showing reg img");
+      Serial.println(F("showing reg img"));
       //delay(1000);
       // show the image since not a dup:
       bmpDraw(images[image], 0, 0);
@@ -336,8 +336,8 @@ void showImg(int w) {
       int chooser = floor(random(sizeof(delays) / sizeof(int)));
       delay(delays[chooser]);
 
-      // should this really be here? perhaps we put it somewhere else. somewhere external:
-      // mixingMemories(chooser);  // if we've been up and running awhile mix up memories  <----**
+      // if we've been up and running awhile mix up memories  <----**
+      mixingMemories(chooser);
 
       //currentMillis = millis();  //unsigned long
       tft.fillScreen(ILI9340_BLACK);
@@ -355,7 +355,7 @@ void showImg(int w) {
     // takes so long to load images, best to take another time stamp
     //currentMillis = millis();
     previousMillis = currentMillis;
-    Serial.println("showImg time lapse. dropping out");
+    //Serial.println("showImg time lapse. dropping out");
   } // if enough time has passed
 
 }
@@ -422,14 +422,23 @@ bool alreadyShown(int image) {
   //Serial.println(F("am I a dup?"));
   // if statement or variable for first time as 0 slot
   for (int i = 1; i < sizeof(storageH) / sizeof(int); i++) {
-    //if the selected image is already in storage:
-    if (storageH[i] == image) {
-      // Serial.println(F("I'm a duplicate"));
+    // if we are at last spot && the image has already been stored:
+    if ( (i == (sizeof(storageH) / sizeof(int) - 1)) && (storageH[i] == image) ) {
+    Serial.println(F("storage full! zeroing out"));
+      for (int i = 1; i < sizeof(storageH) / sizeof(int); i++) {
+        storageH[i] = 0;
+      }
+      capacity = 0;
       return true;
-    } // if
-  } // for
-  //Serial.println(F("no, I'm not a dup"));
-  return false;
+    }
+    //if the selected image is already in storage:
+    else if (storageH[i] == image) {
+    // Serial.println(F("I'm a duplicate"));
+    return true;
+  } // if
+} // for
+//Serial.println(F("no, I'm not a dup"));
+return false;
 
 } //alreadyshown
 
@@ -439,8 +448,24 @@ void mixingMemories(int d) {
   //Serial.print("memory mixer stamp: ");
   //Serial.println(previousMillis_m);
 
+  // if it's been a longer while, black out memories
+  if ((millis() - previousMillis_m2) > 900000) { // 20 minutes = 1,200,000
+    // black over them
+    Serial.println();
+    Serial.println(F("Blacking out memories"));
+    Serial.println();
+    Serial.println();
+    int randie = int(random(0, numImages_hist));
+    bmpDraw(images[randie], 0, 0);
+    tft.setRotation(random(0, 3));
+    bmpDraw(images[0], random(0, 241), random(0, 321));
+    tft.setRotation(random(0, 3));
+    bmpDraw(images[0], random(0, 241), random(0, 321));
+    tft.setRotation(random(0, 3));
+    previousMillis_m2 = 0;  // restart variable
+  }
 
-  if ((millis() - previousMillis_m ) > 150000 ) { // 15 mintes = 900,000
+  else if ((millis() - previousMillis_m ) > 150000) { // 15 minutes = 900,000
     // mix up memories. this does an overlay of a few images before moving on
     // Serial.println();
     Serial.println(F("now we are going to mix them up!"));
@@ -460,26 +485,6 @@ void mixingMemories(int d) {
     previousMillis_m2 = previousMillis_m2 + previousMillis_m;
 
     //tft.fillScreen(ILI9340_BLACK);
-  }
-
-
-  // if it's been a longer while, black out memories
-  if ((millis() - previousMillis_m2) > 300000) { // 20 minutes = 1,200,000
-    // black over them
-    Serial.println();
-    Serial.println("Blacking out memories");
-    Serial.println();
-    Serial.println();
-    int randie = int(random(0, numImages_hist));
-    bmpDraw(images[randie], 0, 0);
-    tft.setRotation(random(0, 3));
-    bmpDraw(images[0], random(0, 241), random(0, 321));
-    tft.setRotation(random(0, 3));
-    bmpDraw(images[0], random(0, 241), random(0, 321));
-    tft.setRotation(random(0, 3));
-
-    previousMillis_m2 = 0;
-
   }
 
   tft.setRotation(0);
@@ -551,8 +556,8 @@ float checkWind() {
 
   // sensor is sensitive. scale numbers for ease:
   WindSpeed_MPH = WindSpeed_MPH * 10.0;
-  Serial.print("   windspeed:  ");
-  Serial.println((float)WindSpeed_MPH);
+  //Serial.print("   windspeed:  ");
+  //Serial.println((float)WindSpeed_MPH);
   return WindSpeed_MPH;
   // }
 
