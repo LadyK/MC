@@ -87,7 +87,7 @@ int TempCtimes100;
 float zeroWind_ADunits;
 float zeroWind_volts;
 float WindSpeed_MPH;
-float Wind_speed;
+float wind_speed;
 float wind;
 boolean breathe;
 //unsigned long lastShow = 0;
@@ -102,7 +102,7 @@ int delays[3];
 
 //store the random selections so not as to repeat any selections
 int storageH[22];   //  // need to store zero slot, but will never use that image slot
-int prob_narr = 100; //= 200;
+int prob_narr = 200; //= 200;
 int hist = 800;
 int picD = 150;
 int picH = 4000;
@@ -177,73 +177,78 @@ void loop() {
     // set the light low
     analogWrite(analogLED, 0);
     // check sensor
-    Wind_speed = checkWind();
-    //  Serial.print(F("wind speed is  "));
-    //  Serial.println(Wind_speed);
+    wind_speed = checkWind();
 
     // if that reading is over the threshold
-    if ((float)Wind_speed > 5.0) {  //0.8   // this low?
+    if ((float)wind_speed > .05) {  //0.8   // this low?
       // take a time stamp
-      lastMillis = millis();
+      //lastMillis = millis();
+
       // flutter a LED
-      /* taking this out for now. seems a bit redundant
-        wind = checkWind();
-        Serial.print(F("         wind speed is inside: "));
-        Serial.println(wind);
-      */
-      //is this necessary any more??
-      ///*
-      // take the LED's to the level of the wind:
-      //bring them up frrom darkness to the level of wind
-      for (int i = 0; i < Wind_speed; i++) {
+      //analogWrite(analogLED, wind_speed);
+
+      int smallBreeze = float(map(wind_speed, .05, 5.0, 0, 50));
+      Serial.print("Breeze :  "); Serial.println(smallBreeze);
+      // for (int i = 0; i < smallBreeze; i++) {
+      analogWrite(analogLED, smallBreeze);
+      delay(100);
+      //}
+      // if
+      //analogWrite(analogLED, 0);
+
+
+    }
+    // }
+    /*  move this:
+          //then take that wind and map to light (max light level):
+          int brightness = float(map(wind, 5, 500.0, 0, 1023)); //<- no funniness?
+          analogWrite(analogLED, brightness);
+    */
+    // can this run fast enough to make this perceptible?
+    // do we need this second check?  "...if the wind is really blowing...."
+    // wind = checkWind();
+    // Serial.print(F("wind speed #2 is  "));
+    // Serial.println(wind);
+
+    //if (currentMillis - previousMillis > interval) { }
+
+    wind_speed = checkWind();
+    // if recent wind is greater than this level:
+    if (wind_speed >= 5) {
+      // maybe put wind to light light here?
+      lastMillis = millis();
+      // then take that wind and map to light (max light level):
+      int brightness = float(map(wind_speed, 5, 50, 0, 1023)); //<- no funniness?
+
+      for (int i = 0; i <= brightness; i++) {
         analogWrite(analogLED, i);
-        //delay(10);
-      }
-      //*/
-
-      /*  move this:
-            //then take that wind and map to light (max light level):
-            int brightness = float(map(wind, 5, 500.0, 0, 1023)); //<- no funniness?
-            analogWrite(analogLED, brightness);
-      */
-      // can this run fast enough to make this perceptible?
-      // do we need this second check?  "...if the wind is really blowing...."
-      wind = checkWind();
-      Serial.print(F("wind speed #2 is  "));
-      Serial.println(wind);
-
-      //if (currentMillis - previousMillis > interval) { }
-
-      // if recent wind is greater than this level:
-      if (wind > 8.0) {
-        // maybe put wind to light light here?
-
-        // then take that wind and map to light (max light level):
-        int brightness = float(map(wind, 5, 500.0, 0, 1023)); //<- no funniness?
-        analogWrite(analogLED, brightness);
-
-
-        showImg(wind);
-        analogWrite(analogLED, 0); // bring lights low after
-        //swapie();
-        //Serial.println("heyo");
-
-        if (previousErase == 0) { // if this is our first time through
-          previousErase = millis();  // take a time stamp
-          //Serial.print(F("previousErase at stamp is: ")); Serial.println(previousErase);
-        }
-
-        //analogWrite(analogLED, 0);
+        delay(10);
       }
 
-      Serial.print(F("previousErase - timestamp is: ")); Serial.println(millis() - previousErase);
-      if (millis() - previousErase  > 600000) { // if we've erased again after 10 minutes
-        swapie();
+      analogWrite(analogLED, brightness);
+      Serial.println("about to show img;; BRIGHT");
+      showImg(brightness);
+      analogWrite(analogLED, 0); // bring lights low after
+      //swapie();
+      //Serial.println("heyo");
+
+      if (previousErase == 0) { // if this is our first time through
+        previousErase = millis();  // take a time stamp
+        //Serial.print(F("previousErase at stamp is: ")); Serial.println(previousErase);
       }
+
+      //analogWrite(analogLED, 0);
     }
   }
-  //*/
+
+  // Serial.print(F("previousErase - timestamp is: ")); Serial.println(millis() - previousErase);
+  if (millis() - previousErase  > 600000) { // if we've erased again after 10 minutes
+    //swapie();
+  }
 }
+
+//*/
+
 
 void swapie() {
   //int thresh = 5000;
@@ -285,23 +290,23 @@ void swapie() {
 
 
 void showImg(int w) {
- // currentMillis = millis();  //unsigned long
-
-  // took this out. don't think it's necessary. Already at the light level:
-  //int brightness = float(map(w, 0, 500.0, 0, 1023));
-  //analogWrite(analogLED, brightness);
-
+  currentMillis = millis();  //unsigned long
+  //  ensures that lights are on for image (bug work arnd):
+  analogWrite(analogLED, w);
+  Serial.println("Turned on...now img");
+  
   if (currentMillis - previousMillis > interval) {
 
-    r = random(1000);
+    r = random((hist + 50));
 
     // once in a while, show a narrative:
     if ( r <= prob_narr) {
       //figure out a narrative to show, along with delay lengths:
+      Serial.println("showing narrative");
 
-      
+
       showNarrative();
-      currentMillis = millis();  //unsigned long
+      //currentMillis = millis();  //unsigned long
 
     } //if probabilty says to show a narr
 
@@ -312,15 +317,15 @@ void showImg(int w) {
       //   Serial.print(F("image picked =  "));
       //   Serial.println(image);
 
-      //let's check if we have already been shown: 
+      //let's check if we have already been shown:
       while (alreadyShown(image)) { //maybe use an if statement instead?
         Serial.println(F("let's try a different number"));
         image = int(random(1, (sizeof(storageH) / sizeof(int)))); // there are 14 slots, but 13 images. random(min, (max+1)); doesn't do top limit. up unto that value
         Serial.print(F("new image picked =  "));
         Serial.println(image);
       }
-
-      delay(1000);
+      Serial.println("showing reg img");
+      //delay(1000);
       // show the image since not a dup:
       bmpDraw(images[image], 0, 0);
 
@@ -333,7 +338,8 @@ void showImg(int w) {
 
       // should this really be here? perhaps we put it somewhere else. somewhere external:
       // mixingMemories(chooser);  // if we've been up and running awhile mix up memories  <----**
-      currentMillis = millis();  //unsigned long
+
+      //currentMillis = millis();  //unsigned long
       tft.fillScreen(ILI9340_BLACK);
 
       //store the image in the next available slot
@@ -342,14 +348,14 @@ void showImg(int w) {
     } //else if hist
     else {
       tft.fillScreen(ILI9340_BLACK);  // <------ try this off
-      //Serial.println(F("got here, turning led off"));
+      Serial.println(F("last ditch; black"));
       analogWrite(analogLED, 0);
 
     } // else
     // takes so long to load images, best to take another time stamp
     //currentMillis = millis();
     previousMillis = currentMillis;
-    Serial.println("just showed narrative/img, took time stamp. dropping out");
+    Serial.println("showImg time lapse. dropping out");
   } // if enough time has passed
 
 }
@@ -361,7 +367,7 @@ void showNarrative() {
   // pick a couple differnt delay times:
   int randDelayLong = ceil(random(55)) * 100;
   int randDelayShort = ceil(random(7, 10)) * 100;
-   int delays[] = {randDelayLong, randDelayShort, randDelayLong};
+  int delays[] = {randDelayLong, randDelayShort, randDelayLong};
 
   // this holds the final selection:
   int narrSelection;
@@ -488,7 +494,7 @@ void storageCheck() {
       storageH[i] = image;
       //  Serial.print(F("storing the image for the future  "));
       //  Serial.println(image);
-       capacity++;
+      capacity++;
       break;
     } // if
   } //for
@@ -539,23 +545,14 @@ float checkWind() {
     Serial.print("   ZeroWind volts ");
     Serial.print(zeroWind_volts);
   */
-  Serial.print("   WindSpeed MPH ");
-  Serial.println((float)WindSpeed_MPH);
+  //Serial.print("   WindSpeed MPH ");
+  //Serial.println((float)WindSpeed_MPH);
   // lastMillis2 = millis();
 
-  // WindSpeed_MPH = WindSpeed_MPH * 100.0;
-  //Serial.print("   WindSpeed MPH_upped ");
-  //Serial.println((float)WindSpeed_MPH);
-
-
-  // map the light to an LED
-  /*
-    if ((float)WindSpeed_MPH > 0.01) {
-
-      int brightness = float(map(WindSpeed_MPH, 0, 500.0, 0, 1023));
-      analogWrite(analogLED, brightness);
-    }
-  */
+  // sensor is sensitive. scale numbers for ease:
+  WindSpeed_MPH = WindSpeed_MPH * 10.0;
+  Serial.print("   windspeed:  ");
+  Serial.println((float)WindSpeed_MPH);
   return WindSpeed_MPH;
   // }
 
