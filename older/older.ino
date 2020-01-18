@@ -41,11 +41,6 @@ Adafruit_ILI9340 tft = Adafruit_ILI9340(TFT_CS, TFT_DC, TFT_RST);
 */
 
 
-/* When adding images:
-  - images must be 240 x 320 bmp for windows with titles less than 7 characters
-  - add string title to history array
-  - increase these variable start values by number of images: storageH + numImages_hist
-*/
 
 char* images[] = {"black.bmp", "asburyB.bmp", "vancov.bmp", "bench.bmp", "AlexBDay.bmp", "caton.bmp", "lvrmBlu.bmp", "sunset2.bmp", "street2.bmp",
                   "street.bmp", "swiss.bmp", "tobys.bmp", "trainR.bmp",  "westS2.bmp", "wintree.bmp", "friebG.bmp",
