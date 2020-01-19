@@ -2,27 +2,33 @@
    Test Wind Sensor from Modern Device
    Sensor code from Moder Device: https://github.com/moderndevice/Wind_Sensor
 
+   TFT Shield code built from Adafruit's example: https://learn.adafruit.com/adafruit-2-8-tft-touch-shield-v2/drawing-bitmaps
 
 */
-#include <Adafruit_GFX.h>
-
 //#include <StackArray.h>
 
 #include <Adafruit_GFX.h>
-#include <Adafruit_ILI9340.h>
-#include <SPI.h>
-#include <SD.h>
+#include <Adafruit_ILI9341.h>
+#include <SdFat.h>                // SD card & FAT filesystem library
+#include <Adafruit_SPIFlash.h>    // SPI / QSPI flash library
+#include <Adafruit_ImageReader.h> // Image-reading functions
 
-#if defined(__SAM3X8E__)
-#undef __FlashStringHelper::F(string_literal)
-#define F(string_literal) string_literalr
-#endif
+
+// Comment out the next line to load from SPI/QSPI flash instead of SD card:
+#define USE_SD_CARD
+
+//#if defined(__SAM3X8E__)
+//#undef __FlashStringHelper::F(string_literal)
+//#define F(string_literal) string_literalr
+//#endif
 
 // TFT display and SD card will share the hardware SPI interface.
 // Hardware SPI pins are specific to the Arduino board type and
-// cannot be remapped to alternate pins.  For Arduino Uno,
+// cannot be remapped to alternate pins.  using
+// 'select' pins for each to identify the active device on the bus. For Arduino Uno,
 // Duemilanove, etc., pin 11 = MOSI, pin 12 = MISO, pin 13 = SCK.
-#define TFT_RST 8
+
+//#define TFT_RST 8
 #define TFT_DC 9
 #define TFT_CS 10
 #define SD_CS 4
@@ -31,8 +37,31 @@
 #define analogPinForTMP   0
 #define analogLED         5
 
+#if defined(USE_SD_CARD)
+  SdFat                SD;         // SD card filesystem
+  Adafruit_ImageReader reader(SD); // Image-reader object, pass in SD filesys
+#else
+      // SPI or QSPI flash filesystem (i.e. CIRCUITPY drive)
+      #if defined(__SAMD51__) || defined(NRF52840_XXAA)
+          Adafruit_FlashTransport_QSPI flashTransport(PIN_QSPI_SCK, PIN_QSPI_CS,
+            PIN_QSPI_IO0, PIN_QSPI_IO1, PIN_QSPI_IO2, PIN_QSPI_IO3);
+       #else
+          #if (SPI_INTERFACES_COUNT == 1)
+            Adafruit_FlashTransport_SPI flashTransport(SS, &SPI);
+           #else
+            Adafruit_FlashTransport_SPI flashTransport(SS1, &SPI1);
+            #endif
+        #endif
+        Adafruit_SPIFlash    flash(&flashTransport);
+        FatFileSystem        filesys;
+        Adafruit_ImageReader reader(filesys); // Image-reader, pass in flash filesys
+#endif
 
-Adafruit_ILI9340 tft = Adafruit_ILI9340(TFT_CS, TFT_DC, TFT_RST);
+
+Adafruit_ILI9341     tft    = Adafruit_ILI9341(TFT_CS, TFT_DC);
+Adafruit_Image       img;        // An image loaded into RAM
+int32_t              width  = 0, // BMP image dimensions
+                     height = 0;
 
 /* When adding images:
   - images must be 240 x 320 bmp for windows with titles less than 7 characters
@@ -41,6 +70,11 @@ Adafruit_ILI9340 tft = Adafruit_ILI9340(TFT_CS, TFT_DC, TFT_RST);
 */
 
 
+/* When adding images:
+  - images must be 240 x 320 bmp for windows with titles less than 7 characters
+  - add string title to history array
+  - increase these variable start values by number of images: storageH + numImages_hist
+*/
 
 char* images[] = {"black.bmp", "asburyB.bmp", "vancov.bmp", "bench.bmp", "AlexBDay.bmp", "caton.bmp", "lvrmBlu.bmp", "sunset2.bmp", "street2.bmp",
                   "street.bmp", "swiss.bmp", "tobys.bmp", "trainR.bmp",  "westS2.bmp", "wintree.bmp", "friebG.bmp",
@@ -116,20 +150,43 @@ int wSize4 = 240 / 4;
 int hSize4 = 240 / 4;
 
 void setup() {
-
+  
+  ImageReturnCode stat; // Status from image-reading functions
 
   Serial.begin(57600);   // faster printing to get a bit better throughput on extended info
   // remember to change your serial monitor
+#if !defined(ESP32)
+  while (!Serial);      // Wait for Serial Monitor before continuing
+#endif
 
-  Serial.print(F("Initializing SD card..."));
-  if (!SD.begin(SD_CS)) {
-    Serial.println(F("failed!"));
-    return;
+  tft.begin();          // Initialize screen
+
+  // The Adafruit_ImageReader constructor call (above, before setup())
+  // accepts an uninitialized SdFat or FatFileSystem object. This MUST
+  // BE INITIALIZED before using any of the image reader functions!
+  Serial.print(F("Initializing filesystem..."));
+#if defined(USE_SD_CARD)
+  // SD card is pretty straightforward, a single call...
+  if (!SD.begin(SD_CS, SD_SCK_MHZ(25))) { // ESP32 requires 25 MHz limit
+    Serial.println(F("SD begin() failed"));
+    for (;;); // Fatal error, do not continue
   }
+#else
+  // SPI or QSPI flash requires two steps, one to access the bare flash
+  // memory itself, then the second to access the filesystem within...
+  if (!flash.begin()) {
+    Serial.println(F("flash begin() failed"));
+    for (;;);
+  }
+  if (!filesys.begin(&flash)) {
+    Serial.println(F("filesys begin() failed"));
+    for (;;);
+  }
+#endif
   Serial.println(F("OK!"));
 
-  tft.begin();
-  tft.fillScreen(ILI9340_BLUE);
+
+  tft.fillScreen(ILI9341_BLUE);
 
   //   Uncomment the three lines below to reset the analog pins A2 & A3
   //   This is code from the Modern Device temp sensor (not required)
@@ -143,10 +200,14 @@ void setup() {
   Serial.println(F("start"));
   Serial.println(hSize4);
   Serial.println();
-  tft.fillScreen(ILI9340_BLACK);
+  tft.fillScreen(ILI9341_BLACK);
   randomSeed(analogRead(A5));
 
   lastMillis = 0;
+
+  //stat = reader.drawBMP("asburyB.bmp", tft, 0, 0);
+  //reader.printStatus(stat); // How'd we do?
+  //reader.drawBMP("asburyB.bmp", tft, 0, 0);
 
 }
 
@@ -322,7 +383,9 @@ void showImg(int w) {
       Serial.println(F("showing reg img"));
       //delay(1000);
       // show the image since not a dup:
-      bmpDraw(images[image], 0, 0);
+//      bmpDraw(images[image], 0, 0);
+      reader.drawBMP(images[image], tft, 0, 0);
+
 
       // pick a random delay time:
       int randDelayLong = ceil(random(55)) * 100;
@@ -335,14 +398,14 @@ void showImg(int w) {
       mixingMemories(chooser);
 
       //currentMillis = millis();  //unsigned long
-      tft.fillScreen(ILI9340_BLACK);
+      tft.fillScreen(ILI9341_BLACK);
 
       //store the image in the next available slot
       storageCheck();
 
     } //else if hist
     else {
-      tft.fillScreen(ILI9340_BLACK);  // <------ try this off
+      tft.fillScreen(ILI9341_BLACK);  // <------ try this off
       Serial.println(F("last ditch; black"));
       analogWrite(analogLED, 0);
 
@@ -394,11 +457,11 @@ void showNarrative() {
   for (int i = 0; i < narrLimit; i++) {
     int img = narratives[narrSelection][i];
     if (narratives[narrSelection][i] == 0) {
-      tft.fillScreen(ILI9340_BLACK);
+      tft.fillScreen(ILI9341_BLACK);
     }
     else {   //<---- this is narrative sequence:
-      bmpDraw(images[narratives[narrSelection][i] ], 0, 0);
-
+//      bmpDraw(images[narratives[narrSelection][i] ], 0, 0);
+ reader.drawBMP(images[narratives[narrSelection][i] ], tft, 0, 0);
       //if we are not the last img in narrative:
       if (i == !(narrLimit - 1)) {
         // delay a varying amount between the images:
@@ -410,7 +473,7 @@ void showNarrative() {
     } // showing narrative
   }// end of narrative even if first
 
-  tft.fillScreen(ILI9340_BLACK);
+  tft.fillScreen(ILI9341_BLACK);
 } // show narrative
 
 bool alreadyShown(int image) {
@@ -419,7 +482,7 @@ bool alreadyShown(int image) {
   for (int i = 1; i < sizeof(storageH) / sizeof(int); i++) {
     // if we are at last spot && the image has already been stored:
     if ( (i == (sizeof(storageH) / sizeof(int) - 1)) && (storageH[i] == image) ) {
-    Serial.println(F("storage full! zeroing out"));
+      Serial.println(F("storage full! zeroing out"));
       for (int i = 1; i < sizeof(storageH) / sizeof(int); i++) {
         storageH[i] = 0;
       }
@@ -428,12 +491,12 @@ bool alreadyShown(int image) {
     }
     //if the selected image is already in storage:
     else if (storageH[i] == image) {
-    // Serial.println(F("I'm a duplicate"));
-    return true;
-  } // if
-} // for
-//Serial.println(F("no, I'm not a dup"));
-return false;
+      // Serial.println(F("I'm a duplicate"));
+      return true;
+    } // if
+  } // for
+  //Serial.println(F("no, I'm not a dup"));
+  return false;
 
 } //alreadyshown
 
@@ -451,11 +514,14 @@ void mixingMemories(int d) {
     Serial.println();
     Serial.println();
     int randie = int(random(0, numImages_hist));
-    bmpDraw(images[randie], 0, 0);
+//    bmpDraw(images[randie], 0, 0);
+reader.drawBMP(images[0], tft, random(0, 241), random(0, 321));
     tft.setRotation(random(0, 3));
-    bmpDraw(images[0], random(0, 241), random(0, 321));
+//    bmpDraw(images[0], random(0, 241), random(0, 321));
+reader.drawBMP(images[0], tft, random(0, 241), random(0, 321));
     tft.setRotation(random(0, 3));
-    bmpDraw(images[0], random(0, 241), random(0, 321));
+//    bmpDraw(images[0], random(0, 241), random(0, 321));
+ reader.drawBMP(images[0], tft, random(0, 241), random(0, 321));
     tft.setRotation(random(0, 3));
     previousMillis_m2 = 0;  // restart variable
   }
@@ -467,19 +533,21 @@ void mixingMemories(int d) {
     // Serial.println();
     // Serial.println();
     for (int i = 0; i < 3; i++) {
-      bmpDraw(images[random(0, numImages_hist)], 0, 0);
+//      bmpDraw(images[random(0, numImages_hist)], 0, 0);
+ reader.drawBMP(images[random(0, numImages_hist)], tft, 0, 0);
       tft.setRotation(random(0, 3));
       int randie = int(random(0, numImages_hist));
       // Serial.println();
       // Serial.println(randie);
-      bmpDraw(images[randie], random(0, 241), random(0, 321));
+//      bmpDraw(images[randie], random(0, 241), random(0, 321));
+ reader.drawBMP(images[randie], tft, random(0, 241), random(0, 321));
       delay(delays[d]);
     }
     //delay(2000);
     previousMillis_m = millis();
     previousMillis_m2 = previousMillis_m2 + previousMillis_m;
 
-    //tft.fillScreen(ILI9340_BLACK);
+    //tft.fillScreen(ILI9341_BLACK);
   }
 
   tft.setRotation(0);
@@ -558,144 +626,147 @@ float checkWind() {
 
 }
 
-
-#define BUFFPIXEL 20
-
-void bmpDraw(char *filename, uint8_t x, uint8_t y) {
-
-  File     bmpFile;
-  int      bmpWidth, bmpHeight;   // W+H in pixels
-  uint8_t  bmpDepth;              // Bit depth (currently must be 24)
-  uint32_t bmpImageoffset;        // Start of image data in file
-  uint32_t rowSize;               // Not always = bmpWidth; may have padding
-  uint8_t  sdbuffer[3 * BUFFPIXEL]; // pixel buffer (R+G+B per pixel)
-  uint8_t  buffidx = sizeof(sdbuffer); // Current position in sdbuffer
-  boolean  goodBmp = false;       // Set to true on valid header parse
-  boolean  flip    = true;        // BMP is stored bottom-to-top
-  int      w, h, row, col;
-  uint8_t  r, g, b;
-  uint32_t pos = 0, startTime = millis();
-
-  if ((x >= tft.width()) || (y >= tft.height())) return;
-  /**
-
-     Keep print statements. When comment these out, pics don't load
-     timing?
-  */
-  Serial.println();
-  Serial.print(F("Loading image '"));
-  Serial.print(filename);
-  Serial.println('\'');
-
-  // Open requested file on SD card
-  if ((bmpFile = SD.open(filename)) == NULL) {
-    Serial.print(F("File not found"));
-    return;
-  }
-
-  // Parse BMP header
-  if (read16(bmpFile) == 0x4D42) { // BMP signature
-    Serial.print(F("File size: "));
-    Serial.println(read32(bmpFile));
-    (void)read32(bmpFile); // Read & ignore creator bytes
-    bmpImageoffset = read32(bmpFile); // Start of image data
-    Serial.print(F("Image Offset: "));
-    Serial.println(bmpImageoffset, DEC);
-    // Read DIB header
-    Serial.print(F("Header size: "));
-    Serial.println(read32(bmpFile));
-    bmpWidth  = read32(bmpFile);
-    bmpHeight = read32(bmpFile);
-    if (read16(bmpFile) == 1) { // # planes -- must be '1'
-      bmpDepth = read16(bmpFile); // bits per pixel
-      Serial.print(F("Bit Depth: "));
-      Serial.println(bmpDepth);
-      if ((bmpDepth == 24) && (read32(bmpFile) == 0)) { // 0 = uncompressed
-
-        goodBmp = true; // Supported BMP format -- proceed!
-        Serial.print(F("Image size: "));
-        Serial.print(bmpWidth);
-        Serial.print('x');
-        Serial.println(bmpHeight);
-
-        // BMP rows are padded (if needed) to 4-byte boundary
-        rowSize = (bmpWidth * 3 + 3) & ~3;
-
-        // If bmpHeight is negative, image is in top-down order.
-        // This is not canon but has been observed in the wild.
-        if (bmpHeight < 0) {
-          bmpHeight = -bmpHeight;
-          flip      = false;
-        }
-
-        // Crop area to be loaded
-        w = bmpWidth;
-        h = bmpHeight;
-        if ((x + w - 1) >= tft.width())  w = tft.width()  - x;
-        if ((y + h - 1) >= tft.height()) h = tft.height() - y;
-
-        // Set TFT address window to clipped image bounds
-        tft.setAddrWindow(x, y, x + w - 1, y + h - 1);
-
-        for (row = 0; row < h; row++) { // For each scanline...
-
-          // Seek to start of scan line.  It might seem labor-
-          // intensive to be doing this on every line, but this
-          // method covers a lot of gritty details like cropping
-          // and scanline padding.  Also, the seek only takes
-          // place if the file position actually needs to change
-          // (avoids a lot of cluster math in SD library).
-          if (flip) // Bitmap is stored bottom-to-top order (normal BMP)
-            pos = bmpImageoffset + (bmpHeight - 1 - row) * rowSize;
-          else     // Bitmap is stored top-to-bottom
-            pos = bmpImageoffset + row * rowSize;
-          if (bmpFile.position() != pos) { // Need seek?
-            bmpFile.seek(pos);
-            buffidx = sizeof(sdbuffer); // Force buffer reload
-          }
-
-          for (col = 0; col < w; col++) { // For each pixel...
-            // Time to read more pixel data?
-            if (buffidx >= sizeof(sdbuffer)) { // Indeed
-              bmpFile.read(sdbuffer, sizeof(sdbuffer));
-              buffidx = 0; // Set index to beginning
-            }
-
-            // Convert pixel from BMP to TFT format, push to display
-            b = sdbuffer[buffidx++];
-            g = sdbuffer[buffidx++];
-            r = sdbuffer[buffidx++];
-            tft.pushColor(tft.Color565(r, g, b));
-          } // end pixel
-        } // end scanline
-        Serial.print(F("Loaded in "));
-        Serial.print(millis() - startTime);
-        Serial.println(F(" ms"));
-      } // end goodBmp
-    }
-  }
-
-  bmpFile.close();
-  if (!goodBmp) Serial.println(F("BMP format not recognized."));
-}
-
-
-// These read 16- and 32-bit types from the SD card file.
-// BMP data is stored little-endian, Arduino is little-endian too.
-// May need to reverse subscript order if porting elsewhere.
-
-uint16_t read16(File & f) {
-  uint16_t result;
-  ((uint8_t *)&result)[0] = f.read(); // LSB
-  ((uint8_t *)&result)[1] = f.read(); // MSB
-  return result;
-}
-
-uint32_t read32(File & f) {
-  uint32_t result;
-  ((uint8_t *)&result)[0] = f.read(); // LSB
-  ((uint8_t *)&result)[1] = f.read();
-  ((uint8_t *)&result)[2] = f.read();
-  ((uint8_t *)&result)[3] = f.read(); // MSB
-  return result;
-}
+///*
+//
+//#define BUFFPIXEL 20
+//
+//void bmpDraw(char *filename, uint8_t x, uint8_t y) {
+//
+//  File     bmpFile;
+//  int      bmpWidth, bmpHeight;   // W+H in pixels
+//  uint8_t  bmpDepth;              // Bit depth (currently must be 24)
+//  uint32_t bmpImageoffset;        // Start of image data in file
+//  uint32_t rowSize;               // Not always = bmpWidth; may have padding
+//  uint8_t  sdbuffer[3 * BUFFPIXEL]; // pixel buffer (R+G+B per pixel)
+//  uint8_t  buffidx = sizeof(sdbuffer); // Current position in sdbuffer
+//  boolean  goodBmp = false;       // Set to true on valid header parse
+//  boolean  flip    = true;        // BMP is stored bottom-to-top
+//  int      w, h, row, col;
+//  uint8_t  r, g, b;
+//  uint32_t pos = 0, startTime = millis();
+//
+//  if ((x >= tft.width()) || (y >= tft.height())) return;
+//  /**
+//
+//     Keep print statements. When comment these out, pics don't load
+//     timing?
+//  */
+//  Serial.println();
+//  Serial.print(F("Loading image '"));
+//  Serial.print(filename);
+//  Serial.println('\'');
+//
+//  // Open requested file on SD card
+//  if ((bmpFile = SD.open(filename)) == NULL) {
+//    Serial.print(F("File not found"));
+//    return;
+//  }
+//
+//  // Parse BMP header
+//  if (read16(bmpFile) == 0x4D42) { // BMP signature
+//    Serial.print(F("File size: "));
+//    Serial.println(read32(bmpFile));
+//    (void)read32(bmpFile); // Read & ignore creator bytes
+//    bmpImageoffset = read32(bmpFile); // Start of image data
+//    Serial.print(F("Image Offset: "));
+//    Serial.println(bmpImageoffset, DEC);
+//    // Read DIB header
+//    Serial.print(F("Header size: "));
+//    Serial.println(read32(bmpFile));
+//    bmpWidth  = read32(bmpFile);
+//    bmpHeight = read32(bmpFile);
+//    if (read16(bmpFile) == 1) { // # planes -- must be '1'
+//      bmpDepth = read16(bmpFile); // bits per pixel
+//      Serial.print(F("Bit Depth: "));
+//      Serial.println(bmpDepth);
+//      if ((bmpDepth == 24) && (read32(bmpFile) == 0)) { // 0 = uncompressed
+//
+//        goodBmp = true; // Supported BMP format -- proceed!
+//        Serial.print(F("Image size: "));
+//        Serial.print(bmpWidth);
+//        Serial.print('x');
+//        Serial.println(bmpHeight);
+//
+//        // BMP rows are padded (if needed) to 4-byte boundary
+//        rowSize = (bmpWidth * 3 + 3) & ~3;
+//
+//        // If bmpHeight is negative, image is in top-down order.
+//        // This is not canon but has been observed in the wild.
+//        if (bmpHeight < 0) {
+//          bmpHeight = -bmpHeight;
+//          flip      = false;
+//        }
+//
+//        // Crop area to be loaded
+//        w = bmpWidth;
+//        h = bmpHeight;
+//        if ((x + w - 1) >= tft.width())  w = tft.width()  - x;
+//        if ((y + h - 1) >= tft.height()) h = tft.height() - y;
+//
+//        // Set TFT address window to clipped image bounds
+//        tft.setAddrWindow(x, y, x + w - 1, y + h - 1);
+//
+//        for (row = 0; row < h; row++) { // For each scanline...
+//
+//          // Seek to start of scan line.  It might seem labor-
+//          // intensive to be doing this on every line, but this
+//          // method covers a lot of gritty details like cropping
+//          // and scanline padding.  Also, the seek only takes
+//          // place if the file position actually needs to change
+//          // (avoids a lot of cluster math in SD library).
+//          if (flip) // Bitmap is stored bottom-to-top order (normal BMP)
+//            pos = bmpImageoffset + (bmpHeight - 1 - row) * rowSize;
+//          else     // Bitmap is stored top-to-bottom
+//            pos = bmpImageoffset + row * rowSize;
+//          if (bmpFile.position() != pos) { // Need seek?
+//            bmpFile.seek(pos);
+//            buffidx = sizeof(sdbuffer); // Force buffer reload
+//          }
+//
+//          for (col = 0; col < w; col++) { // For each pixel...
+//            // Time to read more pixel data?
+//            if (buffidx >= sizeof(sdbuffer)) { // Indeed
+//              bmpFile.read(sdbuffer, sizeof(sdbuffer));
+//              buffidx = 0; // Set index to beginning
+//            }
+//
+//            // Convert pixel from BMP to TFT format, push to display
+//            b = sdbuffer[buffidx++];
+//            g = sdbuffer[buffidx++];
+//            r = sdbuffer[buffidx++];
+//            tft.pushColor(tft.Color565(r, g, b));
+//          } // end pixel
+//        } // end scanline
+//        Serial.print(F("Loaded in "));
+//        Serial.print(millis() - startTime);
+//        Serial.println(F(" ms"));
+//      } // end goodBmp
+//    }
+//  }
+//
+//  bmpFile.close();
+//  if (!goodBmp) Serial.println(F("BMP format not recognized."));
+//}
+//
+//
+//// These read 16- and 32-bit types from the SD card file.
+//// BMP data is stored little-endian, Arduino is little-endian too.
+//// May need to reverse subscript order if porting elsewhere.
+//
+//uint16_t read16(File & f) {
+//  uint16_t result;
+//  ((uint8_t *)&result)[0] = f.read(); // LSB
+//  ((uint8_t *)&result)[1] = f.read(); // MSB
+//  return result;
+//}
+//
+//uint32_t read32(File & f) {
+//  uint32_t result;
+//  ((uint8_t *)&result)[0] = f.read(); // LSB
+//  ((uint8_t *)&result)[1] = f.read();
+//  ((uint8_t *)&result)[2] = f.read();
+//  ((uint8_t *)&result)[3] = f.read(); // MSB
+//  return result;
+//}
+//
+//*/
