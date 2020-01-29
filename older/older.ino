@@ -316,10 +316,18 @@ void swapie() {
   //int thresh = 5000;
   // after so much time has passed
   // swap around 5 images:
+<<<<<<< Updated upstream
   Serial.println(F("Some serious swappin' about to happen"));
   Serial.println();
   Serial.println();
   for (int i = 0; i < 6; i++) {
+=======
+  Serial.println(F("Some serious rearranging narratives about to happen"));
+ // Serial.println();
+ // Serial.println();
+  /*
+    for (int i = 0; i < 6; i++) {
+>>>>>>> Stashed changes
     int randImgA = int(sizeof(images) / sizeof(char)); // pick a random spot
     char* tempImgA = images[randImgA];  // pull out what's in that spot to temp storage
     int randImgB = int(sizeof(images) / sizeof(char)); // pick a new random image
