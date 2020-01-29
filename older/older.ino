@@ -1,28 +1,21 @@
 /*
    Test Wind Sensor from Modern Device
    Sensor code from Moder Device: https://github.com/moderndevice/Wind_Sensor
+
    TFT Shield code built from Adafruit's example: https://learn.adafruit.com/adafruit-2-8-tft-touch-shield-v2/drawing-bitmaps
+
 */
 //#include <StackArray.h>
 
 #include <Adafruit_GFX.h>
-#include <Adafruit_ILI9340.h>
-//#include <SdFat.h>                // SD card & FAT filesystem library
-//#include <Adafruit_SPIFlash.h>    // SPI / QSPI flash library
-//#include <Adafruit_ImageReader.h> // Image-reading functions . //<----
-
-#include <SPI.h>
-//#include <SdFat.h>                // SD card & FAT filesystem library
-#include <SD.h>
-
-#if defined(__SAM3X8E__)
-#undef __FlashStringHelper::F(string_literal) // Comment out the next line to load from SPI/QSPI flash instead of SD card:
-#define F(string_literal) string_literalr #define USE_SD_CARD
-#endif
+#include <Adafruit_ILI9341.h>
+#include <SdFat.h>                // SD card & FAT filesystem library
+#include <Adafruit_SPIFlash.h>    // SPI / QSPI flash library
+#include <Adafruit_ImageReader.h> // Image-reading functions
 
 
 // Comment out the next line to load from SPI/QSPI flash instead of SD card:
-//#define USE_SD_CARD
+#define USE_SD_CARD
 
 //#if defined(__SAM3X8E__)
 //#undef __FlashStringHelper::F(string_literal)
@@ -35,7 +28,7 @@
 // 'select' pins for each to identify the active device on the bus. For Arduino Uno,
 // Duemilanove, etc., pin 11 = MOSI, pin 12 = MISO, pin 13 = SCK.
 
-#define TFT_RST 8
+//#define TFT_RST 8
 #define TFT_DC 9
 #define TFT_CS 10
 #define SD_CS 4
@@ -43,37 +36,38 @@
 #define analogPinForRV    1   // change to pins you the analog pins are using
 #define analogPinForTMP   0
 #define analogLED         5
-//
-//#if defined(USE_SD_CARD)
-//  SdFat                SD;         // SD card filesystem
-//  Adafruit_ImageReader reader(SD); // Image-reader object, pass in SD filesys
-//#else
-//      // SPI or QSPI flash filesystem (i.e. CIRCUITPY drive)
-//      #if defined(__SAMD51__) || defined(NRF52840_XXAA)
-//          Adafruit_FlashTransport_QSPI flashTransport(PIN_QSPI_SCK, PIN_QSPI_CS,
-//            PIN_QSPI_IO0, PIN_QSPI_IO1, PIN_QSPI_IO2, PIN_QSPI_IO3);
-//       #else
-//          #if (SPI_INTERFACES_COUNT == 1)
-//            Adafruit_FlashTransport_SPI flashTransport(SS, &SPI);
-//           #else
-//            Adafruit_FlashTransport_SPI flashTransport(SS1, &SPI1);
-//            #endif
-//        #endif
-//        Adafruit_SPIFlash    flash(&flashTransport);
-//        FatFileSystem        filesys;
-//        Adafruit_ImageReader reader(filesys); // Image-reader, pass in flash filesys
-//#endif
 
-Adafruit_ILI9340 tft = Adafruit_ILI9340(TFT_CS, TFT_DC, TFT_RST);
-
-//
-//Adafruit_ILI9340     tft    = Adafruit_ILI9340(TFT_CS, TFT_DC);
-//Adafruit_Image       img;        // An image loaded into RAM
-//int32_t              width  = 0, // BMP image dimensions
-//                     height = 0;
+#if defined(USE_SD_CARD)
+SdFat                SD;         // SD card filesystem
+Adafruit_ImageReader reader(SD); // Image-reader object, pass in SD filesys
+#else
+// SPI or QSPI flash filesystem (i.e. CIRCUITPY drive)
+#if defined(__SAMD51__) || defined(NRF52840_XXAA)
+Adafruit_FlashTransport_QSPI flashTransport(PIN_QSPI_SCK, PIN_QSPI_CS,
+    PIN_QSPI_IO0, PIN_QSPI_IO1, PIN_QSPI_IO2, PIN_QSPI_IO3);
+#else
+#if (SPI_INTERFACES_COUNT == 1)
+Adafruit_FlashTransport_SPI flashTransport(SS, &SPI);
+#else
+Adafruit_FlashTransport_SPI flashTransport(SS1, &SPI1);
+#endif
+#endif
+Adafruit_SPIFlash    flash(&flashTransport);
+FatFileSystem        filesys;
+Adafruit_ImageReader reader(filesys); // Image-reader, pass in flash filesys
+#endif
 
 
+Adafruit_ILI9341     tft    = Adafruit_ILI9341(TFT_CS, TFT_DC);
+Adafruit_Image       img;        // An image loaded into RAM
+int32_t              width  = 0, // BMP image dimensions
+                     height = 0;
 
+/* When adding images:
+  - images must be 240 x 320 bmp for windows with titles less than 7 characters
+  - add string title to history array
+  - increase these variable start values by number of images: storageH + numImages_hist
+*/
 
 
 /* When adding images:
@@ -82,11 +76,17 @@ Adafruit_ILI9340 tft = Adafruit_ILI9340(TFT_CS, TFT_DC, TFT_RST);
   - increase these variable start values by number of images: storageH + numImages_hist
 */
 
-const char* images[] = {"black.bmp", "asburyB.bmp", "vancov.bmp", "bench.bmp", "AlexBDay.bmp", "caton.bmp", "lvrmBlu.bmp", "sunset2.bmp", "street2.bmp",
-                        "street.bmp", "swiss.bmp", "tobys.bmp", "trainR.bmp",  "westS2.bmp", "wintree.bmp", "friebG.bmp",
-                        "black2.bmp", "karok.bmp",  "nightSt.bmp",  "subway.bmp", "kayak.bmp", "blue.bmp"
-                       };
+// need to save space. renaming files; then using for loop indice concatenated with ".bmp"
+// black.bmp = 0.bmp
 
+byte black = 0;
+
+/*
+  char* images[] = {"black.bmp", "asburyB.bmp", "vancov.bmp", "bench.bmp", "AlexBDay.bmp", "caton.bmp", "lvrmBlu.bmp", "sunset2.bmp", "street2.bmp",
+                 9 "street.bmp", "swiss.bmp", "tobys.bmp", "trainR.bmp",  "westS2.bmp", "wintree.bmp", "friebG.bmp",
+                  "black2.bmp", "karok.bmp",  "nightSt.bmp",  "subway.bmp", "kayak.bmp", "blue.bmp"
+                };
+*/
 
 // if we repeat 0 slot twice, will actually show image
 /*
@@ -110,7 +110,7 @@ byte narratives[7][10] = {
   {7, 0, 0, 13, 0, 14, 0, 14, 14, 0}
 };
 
-int numImages_hist = 22;   //actual number of images to show
+int numImages_hist = 50;   //actual number of images to show
 
 const float zeroWindAdjustment =  .2; // negative numbers yield smaller wind speeds and vice versa. // was.2
 
@@ -136,7 +136,7 @@ unsigned long previousMillis_m = 0;
 int delays[3];
 
 //store the random selections so not as to repeat any selections
-int storageH[22];   //  // need to store zero slot, but will never use that image slot
+int storageH[51];   //  // need to store zero slot, but will never use that image slot
 int prob_narr = 200; //= 200;
 int hist = 800;
 int picD = 150;
@@ -145,6 +145,8 @@ int image;
 long r;
 unsigned long previousMillis_m2;
 int capacity = 0;
+int chooser = 0;
+char filename[6];
 
 //String whichNarr[] = { "natural", "bday", "dark", "dark2", "water", "winter", "blank"};
 int a = 0;
@@ -157,48 +159,42 @@ int hSize4 = 240 / 4;
 
 void setup() {
 
-  // ImageReturnCode stat; // Status from image-reading functions
+  ImageReturnCode stat; // Status from image-reading functions
 
   Serial.begin(57600);   // faster printing to get a bit better throughput on extended info
   // remember to change your serial monitor
-  //#if !defined(ESP32)
-  //  while (!Serial);      // Wait for Serial Monitor before continuing
-  //#endif
+#if !defined(ESP32)
+  while (!Serial);      // Wait for Serial Monitor before continuing
+#endif
 
-  //  tft.begin();          // Initialize screen
-  //
-  //  // The Adafruit_ImageReader constructor call (above, before setup())
-  //  // accepts an uninitialized SdFat or FatFileSystem object. This MUST
-  //  // BE INITIALIZED before using any of the image reader functions!
-  //  Serial.print(F("Initializing filesystem..."));
-  //#if defined(USE_SD_CARD)
-  //  // SD card is pretty straightforward, a single call...
-  //  if (!SD.begin(SD_CS, SD_SCK_MHZ(25))) { // ESP32 requires 25 MHz limit
-  //    Serial.println(F("SD begin() failed"));
-  //    for (;;); // Fatal error, do not continue
-  //  }
-  //#else
-  //  // SPI or QSPI flash requires two steps, one to access the bare flash
-  //  // memory itself, then the second to access the filesystem within...
-  //  if (!flash.begin()) {
-  //    Serial.println(F("flash begin() failed"));
-  //    for (;;);
-  //  }
-  //  if (!filesys.begin(&flash)) {
-  //    Serial.println(F("filesys begin() failed"));
-  //    for (;;);
-  //  }
-  //#endif
+  tft.begin();          // Initialize screen
 
-  Serial.print(F("Initializing SD card..."));    tft.begin();          // Initialize screen
-  if (!SD.begin(SD_CS)) {
-    Serial.println(F("failed!"));   // The Adafruit_ImageReader constructor call (above, before setup())
-    return;
+  // The Adafruit_ImageReader constructor call (above, before setup())
+  // accepts an uninitialized SdFat or FatFileSystem object. This MUST
+  // BE INITIALIZED before using any of the image reader functions!
+  Serial.print(F("Initializing filesystem..."));
+#if defined(USE_SD_CARD)
+  // SD card is pretty straightforward, a single call...
+  if (!SD.begin(SD_CS, SD_SCK_MHZ(25))) { // ESP32 requires 25 MHz limit
+    Serial.println(F("SD begin() failed"));
+    for (;;); // Fatal error, do not continue
   }
+#else
+  // SPI or QSPI flash requires two steps, one to access the bare flash
+  // memory itself, then the second to access the filesystem within...
+  if (!flash.begin()) {
+    Serial.println(F("flash begin() failed"));
+    for (;;);
+  }
+  if (!filesys.begin(&flash)) {
+    Serial.println(F("filesys begin() failed"));
+    for (;;);
+  }
+#endif
   Serial.println(F("OK!"));
 
-  tft.begin();
-  tft.fillScreen(ILI9340_BLUE);
+
+  tft.fillScreen(ILI9341_BLUE);
 
   //   Uncomment the three lines below to reset the analog pins A2 & A3
   //   This is code from the Modern Device temp sensor (not required)
@@ -210,15 +206,23 @@ void setup() {
 
   delay(1000);
   Serial.println(F("start"));
-  tft.fillScreen(ILI9340_BLACK);
+  Serial.println(hSize4);
+  Serial.println();
+  tft.fillScreen(ILI9341_BLACK);
   randomSeed(analogRead(A5));
 
   lastMillis = 0;
 
+  //stat = reader.drawBMP("asburyB.bmp", tft, 0, 0);
+  //reader.printStatus(stat); // How'd we do?
+  //reader.drawBMP("asburyB.bmp", tft, 0, 0);
+
+  Serial.println(randImgfile() );
+
 }
 
 void loop() {
-  delay(200); // slow everything down a tad for testing
+  delay(00); // slow everything down a tad for testing
   analogWrite(analogLED, 0);
 
   /*  this is nice with the layering and leaving the bckgnd
@@ -235,7 +239,7 @@ void loop() {
 
   // check the sensor every so often
   // get a reading
-  if (millis() - lastMillis > 250) {     // read every 200 ms - printing slows this down further
+  if (millis() - lastMillis > 200) {     // read every 200 ms - printing slows this down further
     // set the light low
     analogWrite(analogLED, 0);
     // check sensor
@@ -260,7 +264,7 @@ void loop() {
 
 
     }
-    // }
+
     /*  move this:
           //then take that wind and map to light (max light level):
           int brightness = float(map(wind, 5, 500.0, 0, 1023)); //<- no funniness?
@@ -279,8 +283,10 @@ void loop() {
     if (wind_speed >= 10) {
       // maybe put wind to light light here?
       lastMillis = millis();
+      Serial.print(F("wind_speed (before scale) is: "));
+      Serial.println(wind_speed);
       // then take that wind and map to light (max light level):
-      int brightness = float(map(wind_speed, 10, 50, 0, 1023)); //<- no funniness?
+      int brightness = float(map(wind_speed, 10, 50, 20, 1023)); //need some light
 
       for (int i = 0; i <= brightness; i++) {
         analogWrite(analogLED, i);
@@ -300,8 +306,9 @@ void loop() {
       }
 
       //analogWrite(analogLED, 0);
-    }
-  }
+
+    } // wind_speed > 10
+  }  // taking a reading
 
   // Serial.print(F("previousErase - timestamp is: ")); Serial.println(millis() - previousErase);
   if (millis() - previousErase  > 600000) { // if we've erased again after 10 minutes
@@ -316,46 +323,50 @@ void swapie() {
   //int thresh = 5000;
   // after so much time has passed
   // swap around 5 images:
-<<<<<<< Updated upstream
-  Serial.println(F("Some serious swappin' about to happen"));
-  Serial.println();
-  Serial.println();
-  for (int i = 0; i < 6; i++) {
-=======
   Serial.println(F("Some serious rearranging narratives about to happen"));
  // Serial.println();
  // Serial.println();
   /*
     for (int i = 0; i < 6; i++) {
->>>>>>> Stashed changes
     int randImgA = int(sizeof(images) / sizeof(char)); // pick a random spot
     char* tempImgA = images[randImgA];  // pull out what's in that spot to temp storage
     int randImgB = int(sizeof(images) / sizeof(char)); // pick a new random image
     //store in that random location that random image
     images[randImgA] = images[randImgB]; // copy new random slot to the previous
     if (i % 3 == 0) {
-      // black out
-      Serial.println(F("add in a black out"));
-      images[randImgB] = "black.bmp"; // black out that spot where the image was drawn from
+    // black out
+    Serial.println(F("add in a black out"));
+    images[randImgB] = "black.bmp"; // black out that spot where the image was drawn from
     } else {  // just swap them around totally
-      images[randImgB] = tempImgA;
+    images[randImgB] = tempImgA;
     }
+  */
+  //  swapping around narrative points
+  //images[narratives[randX][randY] = images[int(random(images.length())]
+  for (int i = 0; i < 6; i++) {
+    // pick a random value within the limits of the lengths of rows + columns
+    byte randX_a = byte(random(7));
+    byte randY_a = byte(random(10));
+    byte tempNarrA = narratives[randX_a][randY_a];
 
-    /* swapping around narrative points
-      //images[narratives[randX][randY] = images[int(random(images.length())]
-      // pick a random value within the limits of the lengths of rows + columns
-      int randX = int(random(7));
-      int randY = int(random(10));
-      int tempNarrA = narratives[randX][randY];
-      randX = int(random(7));
-      randY = int(random(10));
-      int tempNarrB = narratives[randX][randY];
-    */
+    byte randX_b = byte(random(7));
+    byte randY_b = byte(random(10));
+    byte tempNarrB = narratives[randX_b][randY_b];
+
+    byte temp = tempNarrB;
+    tempNarrB = tempNarrA;
+    tempNarrA = temp;
+    if (i % 3 == 0) {
+      narratives[randX_a][randY_a] = black;  // make that one a black out/0 .
+    } else {
+      narratives[randX_a][randY_a] = tempNarrA;
+      narratives[randX_b][randY_b] = tempNarrB;
+    }
 
   }// for loop
   previousErase = millis();  // take a time stamp
 
-}
+}  // swapie
 
 
 void showImg(int w) {
@@ -366,8 +377,10 @@ void showImg(int w) {
 
   if (currentMillis - previousMillis > interval) {
 
-    r = random((hist + 50));
-
+    r = random(hist);   // <--- why + 50?
+    Serial.println(F("random probablity is ="));
+    Serial.print(r);
+    Serial.println();
     // once in a while, show a narrative:
     if ( r <= prob_narr) {
       //figure out a narrative to show, along with delay lengths:
@@ -377,12 +390,14 @@ void showImg(int w) {
       showNarrative();
       //currentMillis = millis();  //unsigned long
 
+
     } //if probabilty says to show a narr
 
     //Otherwise, show a random image from storage:
     else if ( r <= hist) {
+
       //select random image to show
-      image = int(random(1, (sizeof(storageH) / sizeof(int)))); //number of images - 1, for empty slot
+      byte image = int(random(1, (sizeof(storageH) / sizeof(int)))); //number of images - 1, for empty slot
       //   Serial.print(F("image picked =  "));
       //   Serial.println(image);
 
@@ -396,29 +411,40 @@ void showImg(int w) {
       Serial.println(F("showing reg img"));
       //delay(1000);
       // show the image since not a dup:
-      bmpDraw(images[image], 0, 0);
-//      reader.drawBMP(images[image], tft, 0, 0);
+      //      bmpDraw(images[image], 0, 0);
+      // byte randie = byte(random(1, numImages_hist));
+      char filename[6]; // to ho
+      char temp[3];
+      strcpy(filename, itoa(byte(image), temp, 10));
+      strcat(filename, ".bmp");
+      // String file = String((char*)(f));
+      Serial.println(F("file name to show is: "));
+      Serial.println(filename);
+
+      reader.drawBMP(filename, tft, 0, 0);
 
 
       // pick a random delay time:
-      int randDelayLong = ceil(random(55)) * 100;
-      int randDelayShort = ceil(random(10)) * 100;
+      int randDelayLong = ceil(random(20, 55)) * 100;
+      int randDelayShort = ceil(random(10, 30)) * 100;
       int delays[] = {randDelayLong, randDelayShort, randDelayLong};
-      int chooser = floor(random(sizeof(delays) / sizeof(int)));
+      chooser = floor(random(sizeof(delays) / sizeof(int)));
       delay(delays[chooser]);
 
       // if we've been up and running awhile mix up memories  <----**
       mixingMemories(chooser);
+      chooser = floor(random(sizeof(delays) / sizeof(int)));
+      delay(delays[chooser]);
 
       //currentMillis = millis();  //unsigned long
-      tft.fillScreen(ILI9340_BLACK);
+      tft.fillScreen(ILI9341_BLACK);
 
       //store the image in the next available slot
       storageCheck();
 
     } //else if hist
     else {
-      tft.fillScreen(ILI9340_BLACK);  // <------ try this off
+      tft.fillScreen(ILI9341_BLACK);  // <------ try this off
       Serial.println(F("last ditch; black"));
       analogWrite(analogLED, 0);
 
@@ -431,13 +457,26 @@ void showImg(int w) {
 
 }
 
+char* randImgfile() {
+  byte randie = byte(random(1, numImages_hist));
+  // Serial.print(F("randie is:  ")); Serial.println(randie);
+  //char filename[6]; // to ho
+  char temp[3];
+  strcpy(filename, itoa(byte(randie), temp, 10));
+  //Serial.print(F("filename is:  ")); Serial.println(filename);
+  strcat(filename, ".bmp");
+  //Serial.print(F("filename is:  ")); Serial.println(filename);
+  return filename;
+
+}
+
 void showNarrative() {
   // use probability, as to which narrative to show:
   int randNarr = ceil(random(10));
 
   // pick a couple differnt delay times:
   int randDelayLong = ceil(random(55)) * 100;
-  int randDelayShort = ceil(random(7, 10)) * 100;
+  int randDelayShort = ceil(random(15, 20)) * 100;
   int delays[] = {randDelayLong, randDelayShort, randDelayLong};
 
   // this holds the final selection:
@@ -470,23 +509,29 @@ void showNarrative() {
   for (int i = 0; i < narrLimit; i++) {
     int img = narratives[narrSelection][i];
     if (narratives[narrSelection][i] == 0) {
-      tft.fillScreen(ILI9340_BLACK);
+      tft.fillScreen(ILI9341_BLACK);
     }
     else {   //<---- this is narrative sequence:
-      bmpDraw(images[narratives[narrSelection][i] ], 0, 0);
-      //reader.drawBMP(images[narratives[narrSelection][i] ], tft, 0, 0);
+      //      bmpDraw(images[narratives[narrSelection][i] ], 0, 0);
+      //char filename[10]; // to hold the file name
+      byte img = byte(narratives[narrSelection][i]);
+      char filename[6]; // to ho
+      char temp[3];
+      strcpy(filename, itoa(img, temp, 10));
+      strcat(filename, ".bmp");
+      reader.drawBMP(filename, tft, 0, 0);
       //if we are not the last img in narrative:
-      if (i == !(narrLimit - 1)) {
-        // delay a varying amount between the images:
-        int choser = int(random(0, 3));
-        //Serial.println("delaying in between images");
-        delay(delays[choser]);    // let's see how this goes
-      }// last image in narrative?
+      // if (i == !(narrLimit - 1)) {
+      // delay a varying amount between the images:
+      int choser = int(random(0, 3));
+      //Serial.println("delaying in between images");
+      delay(delays[choser]);    // let's see how this goes
+      // }// last image in narrative?
 
     } // showing narrative
   }// end of narrative even if first
 
-  tft.fillScreen(ILI9340_BLACK);
+  tft.fillScreen(ILI9341_BLACK);
 } // show narrative
 
 bool alreadyShown(int image) {
@@ -516,54 +561,76 @@ bool alreadyShown(int image) {
 void mixingMemories(int d) {
   Serial.println(F("mixing memories"));
   //previousMillis_m = millis(); // take a time stamp for memory mixing (black and overlay);
-  //Serial.print("memory mixer stamp: ");
-  //Serial.println(previousMillis_m);
+  Serial.print("previousMillis_m2:  ");
+  Serial.println(previousMillis_m2);
+  Serial.print("millis  ");
+  Serial.println(millis());
 
-  // if it's been a longer while, black out memories
-  if ((millis() - previousMillis_m2) > 900000) { // 20 minutes = 1,200,000
-    // black over them
-    Serial.println();
+
+                 // if it's been a longer while, black out memories
+  if ((millis() - previousMillis_m2) > 300000) { // 5 minutes; 15 minutes = 900000
+  // black over them
+  Serial.println();
     Serial.println(F("Blacking out memories"));
     Serial.println();
     Serial.println();
-    int randie = int(random(0, numImages_hist));
-    bmpDraw(images[randie], 0, 0);
-    //reader.drawBMP(images[0], tft, random(0, 241), random(0, 321));
+    //int randie = int(random(0, numImages_hist));
+    //    bmpDraw(images[randie], 0, 0);
+    reader.drawBMP("0.bmp", tft, random(0, 241), random(0, 321));
+    delay(randDelay());
     tft.setRotation(random(0, 3));
-    bmpDraw(images[0], random(0, 241), random(0, 321));
-    //reader.drawBMP(images[0], tft, random(0, 241), random(0, 321));
+    //    bmpDraw(images[0], random(0, 241), random(0, 321));
+    reader.drawBMP("0.bmp", tft, random(0, 241), random(0, 321));
+    delay(randDelay());
     tft.setRotation(random(0, 3));
-    bmpDraw(images[0], random(0, 241), random(0, 321));
-    // reader.drawBMP(images[0], tft, random(0, 241), random(0, 321));
+    //    bmpDraw(images[0], random(0, 241), random(0, 321));
+    reader.drawBMP("0.bmp", tft, random(0, 241), random(0, 321));
+    delay(randDelay());
     tft.setRotation(random(0, 3));
-    previousMillis_m2 = 0;  // restart variable
+    previousMillis_m2 = millis();;  // restart variable
   }
 
-  else if ((millis() - previousMillis_m ) > 150000) { // 15 minutes = 900,000
-    // mix up memories. this does an overlay of a few images before moving on
-    // Serial.println();
-    Serial.println(F("now we are going to mix them up!"));
+  // combine one other slice of an image with a different image
+  else if ((millis() - previousMillis_m ) > 210000) { // 3.5 minutes 
+  // mix up memories. this does an overlay of a few images before moving on
+  // Serial.println();
+  Serial.println(F("now we are going to mix them up on display!"));
     // Serial.println();
     // Serial.println();
     for (int i = 0; i < 3; i++) {
-      bmpDraw(images[random(0, numImages_hist)], 0, 0);
-      // reader.drawBMP(images[random(0, numImages_hist)], tft, 0, 0);
+      //      bmpDraw(images[random(0, numImages_hist)], 0, 0);
+      //char f = randImgfile();
+      Serial.print(F("moving file around: "));
+      //Serial.println(f);
+      reader.drawBMP(randImgfile(), tft, 0, 0);
       tft.setRotation(random(0, 3));
-      int randie = int(random(0, numImages_hist));
+
       // Serial.println();
       // Serial.println(randie);
-      bmpDraw(images[randie], random(0, 241), random(0, 321));
-      // reader.drawBMP(images[randie], tft, random(0, 241), random(0, 321));
+      //      bmpDraw(images[randie], random(0, 241), random(0, 321));
+      reader.drawBMP(randImgfile(), tft, random(0, 241), random(0, 321));
       delay(delays[d]);
     }
     //delay(2000);
     previousMillis_m = millis();
-    previousMillis_m2 = previousMillis_m2 + previousMillis_m;
+    //previousMillis_m2 = previousMillis_m2 + previousMillis_m;
 
-    //tft.fillScreen(ILI9340_BLACK);
+    //tft.fillScreen(ILI9341_BLACK);
+  } else {
+    Serial.println(F("not mixing today"));
+    //previousMillis_m = millis();
+    //previousMillis_m2 = previousMillis_m2 + previousMillis_m;
   }
 
   tft.setRotation(0);
+}
+
+int randDelay() {
+  int randDelayLong = ceil(random(20, 55)) * 100;
+  int randDelayShort = ceil(random(10, 30)) * 100;
+  int delays[] = {randDelayLong, randDelayShort, randDelayLong};
+  int chooser = floor(random(sizeof(delays) / sizeof(int)));
+  return chooser;
 }
 
 void storageCheck() {
@@ -616,10 +683,13 @@ float checkWind() {
   /*
     Serial.print("  TMP volts ");
     Serial.print(TMP_Therm_ADunits * 0.0048828125);
+
     Serial.print(" RV volts ");
     Serial.print((float)RV_Wind_Volts);
+
     Serial.print("\t  TempC*100 ");
     Serial.print(TempCtimes100 );
+
     Serial.print("   ZeroWind volts ");
     Serial.print(zeroWind_volts);
   */
@@ -634,165 +704,4 @@ float checkWind() {
   return WindSpeed_MPH;
   // }
 
-}
-
-
-#define BUFFPIXEL 20  //
-
-//#define BUFFPIXEL 20
-void bmpDraw(char *filename, uint8_t x, uint8_t y) {  //
-
-//void bmpDraw(char *filename, uint8_t x, uint8_t y) {
-  File     bmpFile; //
-  int      bmpWidth, bmpHeight;   // W+H in pixels  //  File     bmpFile;
-  uint8_t  bmpDepth;              // Bit depth (currently must be 24) //  int      bmpWidth, bmpHeight;   // W+H in pixels
-  uint32_t bmpImageoffset;        // Start of image data in file  //  uint8_t  bmpDepth;              // Bit depth (currently must be 24)
-  uint32_t rowSize;               // Not always = bmpWidth; may have padding  //  uint32_t bmpImageoffset;        // Start of image data in file
-  uint8_t  sdbuffer[3 * BUFFPIXEL]; // pixel buffer (R+G+B per pixel) //  uint32_t rowSize;               // Not always = bmpWidth; may have padding
-  uint8_t  buffidx = sizeof(sdbuffer); // Current position in sdbuffer  //  uint8_t  sdbuffer[3 * BUFFPIXEL]; // pixel buffer (R+G+B per pixel)
-  boolean  goodBmp = false;       // Set to true on valid header parse  //  uint8_t  buffidx = sizeof(sdbuffer); // Current position in sdbuffer
-  boolean  flip    = true;        // BMP is stored bottom-to-top  //  boolean  goodBmp = false;       // Set to true on valid header parse
-  int      w, h, row, col;  //  boolean  flip    = true;        // BMP is stored bottom-to-top
-  uint8_t  r, g, b; //  int      w, h, row, col;
-  uint32_t pos = 0, startTime = millis(); //  uint8_t  r, g, b;
-
-//  uint32_t pos = 0, startTime = millis();
-  if ((x >= tft.width()) || (y >= tft.height())) return;  //
-  /** //  if ((x >= tft.width()) || (y >= tft.height())) return;
-//  /**
-     Keep print statements. When comment these out, pics don't load //
-     timing?  //     Keep print statements. When comment these out, pics don't load
-  */  //     timing?
-  Serial.println(); //  */
-  Serial.print(F("Loading image '")); //  Serial.println();
-  Serial.print(filename); //  Serial.print(F("Loading image '"));
-  Serial.println('\''); //  Serial.print(filename);
-
-//  Serial.println('\'');
-  // Open requested file on SD card //
-  if ((bmpFile = SD.open(filename)) == NULL) {  //  // Open requested file on SD card
-    Serial.print(F("File not found"));  //  if ((bmpFile = SD.open(filename)) == NULL) {
-    return; //    Serial.print(F("File not found"));
-  } //    return;
-
-//  }
-  // Parse BMP header //
-  if (read16(bmpFile) == 0x4D42) { // BMP signature //  // Parse BMP header
-    Serial.print(F("File size: ")); //  if (read16(bmpFile) == 0x4D42) { // BMP signature
-    Serial.println(read32(bmpFile));  //    Serial.print(F("File size: "));
-    (void)read32(bmpFile); // Read & ignore creator bytes //    Serial.println(read32(bmpFile));
-    bmpImageoffset = read32(bmpFile); // Start of image data  //    (void)read32(bmpFile); // Read & ignore creator bytes
-    Serial.print(F("Image Offset: "));  //    bmpImageoffset = read32(bmpFile); // Start of image data
-    Serial.println(bmpImageoffset, DEC);  //    Serial.print(F("Image Offset: "));
-    // Read DIB header  //    Serial.println(bmpImageoffset, DEC);
-    Serial.print(F("Header size: ")); //    // Read DIB header
-    Serial.println(read32(bmpFile));  //    Serial.print(F("Header size: "));
-    bmpWidth  = read32(bmpFile);  //    Serial.println(read32(bmpFile));
-    bmpHeight = read32(bmpFile);  //    bmpWidth  = read32(bmpFile);
-    if (read16(bmpFile) == 1) { // # planes -- must be '1'  //    bmpHeight = read32(bmpFile);
-      bmpDepth = read16(bmpFile); // bits per pixel //    if (read16(bmpFile) == 1) { // # planes -- must be '1'
-      Serial.print(F("Bit Depth: ")); //      bmpDepth = read16(bmpFile); // bits per pixel
-      Serial.println(bmpDepth); //      Serial.print(F("Bit Depth: "));
-      if ((bmpDepth == 24) && (read32(bmpFile) == 0)) { // 0 = uncompressed //      Serial.println(bmpDepth);
-
-//      if ((bmpDepth == 24) && (read32(bmpFile) == 0)) { // 0 = uncompressed
-        goodBmp = true; // Supported BMP format -- proceed! //
-        Serial.print(F("Image size: "));  //        goodBmp = true; // Supported BMP format -- proceed!
-        Serial.print(bmpWidth); //        Serial.print(F("Image size: "));
-        Serial.print('x');  //        Serial.print(bmpWidth);
-        Serial.println(bmpHeight);  //        Serial.print('x');
-
-//        Serial.println(bmpHeight);
-        // BMP rows are padded (if needed) to 4-byte boundary //
-        rowSize = (bmpWidth * 3 + 3) & ~3;  //        // BMP rows are padded (if needed) to 4-byte boundary
-
-//        rowSize = (bmpWidth * 3 + 3) & ~3;
-        // If bmpHeight is negative, image is in top-down order.  //
-        // This is not canon but has been observed in the wild. //        // If bmpHeight is negative, image is in top-down order.
-        if (bmpHeight < 0) {  //        // This is not canon but has been observed in the wild.
-          bmpHeight = -bmpHeight; //        if (bmpHeight < 0) {
-          flip      = false;  //          bmpHeight = -bmpHeight;
-        } //          flip      = false;
-
-//        }
-        // Crop area to be loaded //
-        w = bmpWidth; //        // Crop area to be loaded
-        h = bmpHeight;  //        w = bmpWidth;
-        if ((x + w - 1) >= tft.width())  w = tft.width()  - x;  //        h = bmpHeight;
-        if ((y + h - 1) >= tft.height()) h = tft.height() - y;  //        if ((x + w - 1) >= tft.width())  w = tft.width()  - x;
-
-//        if ((y + h - 1) >= tft.height()) h = tft.height() - y;
-        // Set TFT address window to clipped image bounds //
-        tft.setAddrWindow(x, y, x + w - 1, y + h - 1);  //        // Set TFT address window to clipped image bounds
-
-//        tft.setAddrWindow(x, y, x + w - 1, y + h - 1);
-        for (row = 0; row < h; row++) { // For each scanline... //
-
-//        for (row = 0; row < h; row++) { // For each scanline...
-          // Seek to start of scan line.  It might seem labor-  //
-          // intensive to be doing this on every line, but this //          // Seek to start of scan line.  It might seem labor-
-          // method covers a lot of gritty details like cropping  //          // intensive to be doing this on every line, but this
-          // and scanline padding.  Also, the seek only takes //          // method covers a lot of gritty details like cropping
-          // place if the file position actually needs to change  //          // and scanline padding.  Also, the seek only takes
-          // (avoids a lot of cluster math in SD library).  //          // place if the file position actually needs to change
-          if (flip) // Bitmap is stored bottom-to-top order (normal BMP)  //          // (avoids a lot of cluster math in SD library).
-            pos = bmpImageoffset + (bmpHeight - 1 - row) * rowSize; //          if (flip) // Bitmap is stored bottom-to-top order (normal BMP)
-          else     // Bitmap is stored top-to-bottom  //            pos = bmpImageoffset + (bmpHeight - 1 - row) * rowSize;
-            pos = bmpImageoffset + row * rowSize; //          else     // Bitmap is stored top-to-bottom
-          if (bmpFile.position() != pos) { // Need seek?  //            pos = bmpImageoffset + row * rowSize;
-            bmpFile.seek(pos);  //          if (bmpFile.position() != pos) { // Need seek?
-            buffidx = sizeof(sdbuffer); // Force buffer reload  //            bmpFile.seek(pos);
-          } //            buffidx = sizeof(sdbuffer); // Force buffer reload
-
-//          }
-          for (col = 0; col < w; col++) { // For each pixel...  //
-            // Time to read more pixel data?  //          for (col = 0; col < w; col++) { // For each pixel...
-            if (buffidx >= sizeof(sdbuffer)) { // Indeed  //            // Time to read more pixel data?
-              bmpFile.read(sdbuffer, sizeof(sdbuffer)); //            if (buffidx >= sizeof(sdbuffer)) { // Indeed
-              buffidx = 0; // Set index to beginning  //              bmpFile.read(sdbuffer, sizeof(sdbuffer));
-            } //              buffidx = 0; // Set index to beginning
-
-//            }
-            // Convert pixel from BMP to TFT format, push to display  //
-            b = sdbuffer[buffidx++];  //            // Convert pixel from BMP to TFT format, push to display
-            g = sdbuffer[buffidx++];  //            b = sdbuffer[buffidx++];
-            r = sdbuffer[buffidx++];  //            g = sdbuffer[buffidx++];
-            tft.pushColor(tft.Color565(r, g, b)); //            r = sdbuffer[buffidx++];
-          } // end pixel  //            tft.pushColor(tft.Color565(r, g, b));
-        } // end scanline //          } // end pixel
-        Serial.print(F("Loaded in "));  //        } // end scanline
-        Serial.print(millis() - startTime); //        Serial.print(F("Loaded in "));
-        Serial.println(F(" ms")); //        Serial.print(millis() - startTime);
-      } // end goodBmp  //        Serial.println(F(" ms"));
-    } //      } // end goodBmp
-  } //    }
-
-//  }
-  bmpFile.close();  //
-  if (!goodBmp) Serial.println(F("BMP format not recognized."));  //  bmpFile.close();
-} //  if (!goodBmp) Serial.println(F("BMP format not recognized."));
-
-//}
-
-//
-// These read 16- and 32-bit types from the SD card file. //
-// BMP data is stored little-endian, Arduino is little-endian too.  //// These read 16- and 32-bit types from the SD card file.
-// May need to reverse subscript order if porting elsewhere.  //// BMP data is stored little-endian, Arduino is little-endian too.
-
-//// May need to reverse subscript order if porting elsewhere.
-uint16_t read16(File & f) { //
-  uint16_t result;  //uint16_t read16(File & f) {
-  ((uint8_t *)&result)[0] = f.read(); // LSB  //  uint16_t result;
-  ((uint8_t *)&result)[1] = f.read(); // MSB  //  ((uint8_t *)&result)[0] = f.read(); // LSB
-  return result;  //  ((uint8_t *)&result)[1] = f.read(); // MSB
-} //  return result;
-
-//}
-uint32_t read32(File & f) { //
-  uint32_t result;  //uint32_t read32(File & f) {
-  ((uint8_t *)&result)[0] = f.read(); // LSB  //  uint32_t result;
-  ((uint8_t *)&result)[1] = f.read(); //  ((uint8_t *)&result)[0] = f.read(); // LSB
-  ((uint8_t *)&result)[2] = f.read(); //  ((uint8_t *)&result)[1] = f.read();
-  ((uint8_t *)&result)[3] = f.read(); // MSB  //  ((uint8_t *)&result)[2] = f.read();
-  return result;  //  ((uint8_t *)&result)[3] = f.read(); // MSB
 }
